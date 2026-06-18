@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><link rel="stylesheet" href="../css/style.css"><script src="../js/util.js"></script></head>
+<body>
+<div class="page-content">
+  <div class="page-hdr-row page-header">
+    <div><h1>👥 Funcionários</h1><p id="sub">Carregando...</p></div>
+    <button class="btn btn-primary" onclick="abrirModal()">+ Novo Funcionário</button>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <input id="busca" placeholder="🔍 Buscar por nome, CPF..." oninput="render()"
+      style="flex:1;min-width:220px">
+    <select id="filtroAtivo" onchange="render()" style="width:160px">
+      <option value="">Todos</option>
+      <option value="1">Ativos</option>
+      <option value="0">Inativos</option>
+    </select>
+  </div>
+
+  <div class="card tbl-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Nome</th><th>CPF</th><th>Cargo</th><th>Departamento</th><th>Jornada</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="aviso av-ok"  id="avisoOk"></div>
+  <div class="aviso av-err" id="avisoErro"></div>
+</div>
+
+<!-- MODAL -->
+<div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;width:600px;max-width:97vw;max-height:92vh;overflow-y:auto">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:800;font-size:14px;color:var(--fg)" id="modalTitulo">Novo Funcionário</span>
+      <button onclick="fecharModal()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:20px" id="modalCorpo"></div>
+  </div>
+</div>
+
+<script>
+aplicarTemaAtual()
+const { listarFuncionarios, inserirFuncionario, atualizarFuncionario, deletarFuncionario } = require('../js/db.js')
+let editId = null
+
+function render() {
+  const busca   = document.getElementById('busca').value
+  const filtro  = document.getElementById('filtroAtivo').value
+  let lista = listarFuncionarios(busca)
+  if (filtro === '1') lista = lista.filter(f => f.ativo)
+  if (filtro === '0') lista = lista.filter(f => !f.ativo)
+  document.getElementById('sub').textContent = lista.length + ' funcionário(s)'
+  document.getElementById('tbody').innerHTML = lista.length ? lista.map(f => `
+    <tr>
+      <td style="font-family:monospace;color:var(--primary)">${f.matricula || f.id}</td>
+      <td><b style="color:var(--fg)">${f.nome}</b></td>
+      <td style="font-size:12px">${f.cpf}</td>
+      <td>${f.cargo || '—'}</td>
+      <td>${f.departamento || '—'}</td>
+      <td>${f.jornada_horas || 8}h/dia</td>
+      <td><span class="badge ${f.ativo ? 'b-green' : 'b-gray'}">${f.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" onclick="editar(${f.id})">✏️</button>
+        <button class="btn btn-danger" style="padding:4px 9px;font-size:11px;margin-left:4px" onclick="desativar(${f.id},'${f.nome.replace(/'/g,"\\'")}')">🗑️</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty">Nenhum funcionário encontrado.</td></tr>'
+}
+
+function abrirModal(dados = {}) {
+  editId = dados.id || null
+  document.getElementById('modalTitulo').textContent = editId ? '✏️ Editar Funcionário' : '+ Novo Funcionário'
+  document.getElementById('modal').style.display = 'flex'
+  document.getElementById('modalCorpo').innerHTML = `
+    <div class="form-row">
+      <div class="form-group fg3"><label class="form-label">Nome Completo *</label><input id="fNome" value="${dados.nome||''}"></div>
+      <div class="form-group"><label class="form-label">Matrícula</label><input id="fMatr" value="${dados.matricula||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">CPF *</label><input id="fCPF" value="${dados.cpf||''}" placeholder="000.000.000-00" ${editId?'disabled':''}></div>
+      <div class="form-group"><label class="form-label">PIN (4 dígitos) *</label><input id="fPIN" type="password" maxlength="4" value="${dados.pin||''}" placeholder="••••" inputmode="numeric"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cargo</label><input id="fCargo" value="${dados.cargo||''}"></div>
+      <div class="form-group"><label class="form-label">Departamento</label><input id="fDept" value="${dados.departamento||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Jornada (h/dia)</label><input id="fJornada" type="number" value="${dados.jornada_horas||8}" min="1" max="12"></div>
+      <div class="form-group"><label class="form-label">Telefone</label><input id="fTel" value="${dados.telefone||''}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">E-mail</label><input id="fEmail" type="email" value="${dados.email||''}"></div>
+    ${editId ? `<div class="form-group"><label class="form-label">Status</label>
+      <select id="fAtivo"><option value="1" ${dados.ativo?'selected':''}>Ativo</option><option value="0" ${!dados.ativo?'selected':''}>Inativo</option></select></div>` : ''}
+    <div class="aviso av-err" id="modalErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">${editId ? '💾 Salvar' : '+ Cadastrar'}</button>
+    </div>`
+}
+
+function fecharModal() { document.getElementById('modal').style.display = 'none' }
+
+function salvar() {
+  const nome = document.getElementById('fNome').value.trim()
+  const cpf  = document.getElementById('fCPF')?.value?.trim() || ''
+  const pin  = document.getElementById('fPIN').value.trim()
+
+  const err = document.getElementById('modalErr')
+  err.style.display = 'none'
+
+  if (!nome)                    { err.textContent = 'Nome obrigatório'; err.style.display='block'; return }
+  if (!editId && !cpf)          { err.textContent = 'CPF obrigatório';  err.style.display='block'; return }
+  if (!pin || pin.length !== 4) { err.textContent = 'PIN deve ter 4 dígitos'; err.style.display='block'; return }
+  if (isNaN(pin))               { err.textContent = 'PIN deve ser numérico'; err.style.display='block'; return }
+
+  try {
+    if (editId) {
+      atualizarFuncionario({
+        id: editId, nome, matricula: document.getElementById('fMatr').value.trim(),
+        cargo: document.getElementById('fCargo').value.trim(),
+        departamento: document.getElementById('fDept').value.trim(),
+        jornada_horas: Number(document.getElementById('fJornada').value) || 8,
+        telefone: document.getElementById('fTel').value.trim(),
+        email: document.getElementById('fEmail').value.trim(),
+        pin, ativo: document.getElementById('fAtivo').value === '1'
+      })
+      aviso('ok', '✅ Funcionário atualizado!')
+    } else {
+      const r = inserirFuncionario({
+        nome, cpf, pin,
+        matricula:    document.getElementById('fMatr').value.trim(),
+        cargo:        document.getElementById('fCargo').value.trim(),
+        departamento: document.getElementById('fDept').value.trim(),
+        jornada_horas: Number(document.getElementById('fJornada').value) || 8,
+        telefone:     document.getElementById('fTel').value.trim(),
+        email:        document.getElementById('fEmail').value.trim(),
+      })
+      if (!r) { err.textContent = 'Já existe funcionário com este CPF.'; err.style.display='block'; return }
+      aviso('ok', '✅ Funcionário cadastrado com sucesso!')
+    }
+    fecharModal()
+    render()
+  } catch(e) {
+    err.textContent = 'Erro: ' + e.message
+    err.style.display = 'block'
+  }
+}
+
+function editar(id) {
+  const f = listarFuncionarios().find(x => x.id === id)
+  if (f) abrirModal(f)
+}
+
+function desativar(id, nome) {
+  confirmar(`Desativar ${nome}?`, ok => {
+    if (!ok) return
+    deletarFuncionario(id)
+    aviso('ok', `${nome} desativado.`)
+    render()
+  })
+}
+
+render()
+</script>
+</body>
+</html>

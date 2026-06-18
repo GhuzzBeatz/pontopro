@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><link rel="stylesheet" href="../css/style.css"><script src="../js/util.js"></script></head>
+<body>
+<div class="page-content">
+  <div class="page-header"><h1>📊 Dashboard</h1><p id="dataHoje"></p></div>
+  <div class="kpi-grid" id="kpiGrid"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">✅ Presentes Hoje</span><span id="cntPresentes" style="font-size:13px;font-weight:800;color:var(--green)">0</span></div>
+      <div class="card-body tbl-wrap" style="padding:0"><table>
+        <thead><tr><th>Funcionário</th><th>Entrada</th><th>Último Ponto</th></tr></thead>
+        <tbody id="tbodyPresentes"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">⚠️ Ausentes / Sem Registro Hoje</span><span id="cntAusentes" style="font-size:13px;font-weight:800;color:var(--orange)">0</span></div>
+      <div class="card-body tbl-wrap" style="padding:0"><table>
+        <thead><tr><th>Funcionário</th><th>Cargo</th></tr></thead>
+        <tbody id="tbodyAusentes"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+<script>
+aplicarTemaAtual()
+const { listarFuncionarios, listarRegistros } = require('../js/db.js')
+
+document.getElementById('dataHoje').textContent = new Date().toLocaleDateString('pt-BR', {
+  weekday:'long', day:'numeric', month:'long', year:'numeric'
+})
+
+function carregar() {
+  const hoje = new Date().toISOString().split('T')[0]
+  const ativos = listarFuncionarios().filter(f => f.ativo)
+  const regsHoje = listarRegistros({ data: hoje })
+
+  const presentes = ativos.filter(f => regsHoje.some(r => Number(r.funcionario_id) === f.id))
+  const ausentes  = ativos.filter(f => !regsHoje.some(r => Number(r.funcionario_id) === f.id))
+
+  document.getElementById('kpiGrid').innerHTML = [
+    ['Funcionários Ativos', ativos.length, 'var(--primary-bg)', 'var(--primary2)', '👥'],
+    ['Presentes Hoje',     presentes.length,'var(--green-bg)',  'var(--green)',    '✅'],
+    ['Ausentes Hoje',      ausentes.length, 'var(--orange-bg)', 'var(--orange)',   '⚠️'],
+    ['Registros Hoje',     regsHoje.length, 'var(--blue-bg)',   'var(--blue)',     '📋'],
+  ].map(([l,v,bg,c,ic]) => `
+    <div class="kpi-card">
+      <div><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c}">${v}</div></div>
+      <div class="kpi-icon" style="background:${bg}">${ic}</div>
+    </div>`).join('')
+
+  document.getElementById('cntPresentes').textContent = presentes.length
+  document.getElementById('cntAusentes').textContent  = ausentes.length
+
+  const TIPOS = { entrada:'Entrada', almoco_saida:'Saída Almoço', almoco_retorno:'Retorno', saida:'Saída' }
+  document.getElementById('tbodyPresentes').innerHTML = presentes.length
+    ? presentes.map(f => {
+        const rs = regsHoje.filter(r => Number(r.funcionario_id) === f.id).sort((a,b)=>a.hora.localeCompare(b.hora))
+        const entrada = rs.find(r=>r.tipo==='entrada')?.hora || '—'
+        const ultimo  = rs[rs.length-1]
+        return `<tr><td style="font-weight:600;color:var(--fg)">${f.nome}</td><td>${entrada}</td>
+          <td><span class="badge b-green">${TIPOS[ultimo?.tipo]||'—'} ${ultimo?.hora||''}</span></td></tr>`
+      }).join('')
+    : '<tr><td colspan="3" class="empty">Nenhum registro hoje</td></tr>'
+
+  document.getElementById('tbodyAusentes').innerHTML = ausentes.length
+    ? ausentes.map(f => `<tr>
+        <td style="font-weight:600;color:var(--fg)">${f.nome}</td>
+        <td style="color:var(--muted)">${f.cargo||'—'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="2" class="empty">Todos os funcionários registraram ponto! ✅</td></tr>'
+}
+carregar()
+</script>
+</body>
+</html>

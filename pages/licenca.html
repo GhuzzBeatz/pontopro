@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>PontoPro — Ativação</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1117;color:#e8eaf0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}.card{background:#1c2233;border:1px solid #2a3350;border-radius:18px;padding:40px 44px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center}.icon{font-size:52px;margin-bottom:14px}h1{font-size:22px;font-weight:900;margin-bottom:6px}.sub{font-size:13px;color:#5a6480;margin-bottom:28px}label{display:block;font-size:10px;font-weight:800;color:#5a6480;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;text-align:left}input{width:100%;background:#161b27;border:2px solid #2a3350;border-radius:10px;padding:13px 16px;color:#e8eaf0;font-size:16px;font-family:monospace;text-transform:uppercase;letter-spacing:2px;text-align:center;outline:none;margin-bottom:14px;transition:border-color .2s}input:focus{border-color:#4f8ef7}input.erro{border-color:#f05252}button{width:100%;padding:13px;background:#4f8ef7;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:10px}.formato{font-size:11px;color:#3a4570;margin-bottom:18px}.formato span{font-family:monospace;color:#4f8ef7;background:rgba(79,142,247,.1);padding:2px 8px;border-radius:4px}.msg-erro{background:rgba(240,82,82,.1);border:1px solid rgba(240,82,82,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:#f05252;display:none;margin-bottom:10px}.msg-ok{background:rgba(34,211,160,.1);border:1px solid rgba(34,211,160,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:#22d3a0;display:none;margin-bottom:10px}.suporte{font-size:11px;color:#3a4570;margin-top:14px;line-height:1.8}.suporte a{color:#4f8ef7;text-decoration:none}</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon"><img src="../logo.png" style="width:80px;height:80px;object-fit:contain"></div>
+  <h1>PontoPro</h1>
+  <div class="sub">Sistema de Controle de Ponto Eletrônico</div>
+  <label>Chave de Ativação</label>
+  <input type="text" id="inputChave" placeholder="PONTO-0000-XXXX-0000" maxlength="20" oninput="fmt(this)">
+  <div class="formato">Formato: <span>PONTO-0000-XXXX-0000</span></div>
+  <div class="msg-erro" id="msgErro">❌ Chave inválida. Verifique e tente novamente.</div>
+  <div class="msg-ok"   id="msgOk">✅ Licença ativada! Abrindo o sistema...</div>
+  <button onclick="ativar()">🔓 Ativar Licença</button>
+  <div class="suporte">Suporte: <a href="mailto:GHZPLUGIN@GMAIL.COM">GHZPLUGIN@GMAIL.COM</a><br>WhatsApp: (11) 94898-1459</div>
+</div>
+<script src="../js/licenca.js"></script>
+<script>
+function fmt(el) {
+  let v = el.value.replace(/[^A-Z0-9]/gi,'').toUpperCase()
+  if(v.startsWith('PONTO')) {
+    let rest=v.slice(5), parts=['PONTO']
+    for(let i=0;i<rest.length&&parts.length<4;i+=4) parts.push(rest.slice(i,i+4))
+    el.value=parts.join('-')
+  } else { el.value=v }
+  el.classList.remove('erro')
+  document.getElementById('msgErro').style.display='none'
+}
+function ativar() {
+  const k=document.getElementById('inputChave').value.trim().toUpperCase()
+  if(validarChavePP(k)){
+    salvarLicencaPP(k)
+    document.getElementById('msgOk').style.display='block'
+    setTimeout(()=>window.location.replace('../index.html'),1500)
+  } else {
+    document.getElementById('inputChave').classList.add('erro')
+    document.getElementById('msgErro').style.display='block'
+  }
+}
+document.getElementById('inputChave').addEventListener('keydown',e=>{if(e.key==='Enter')ativar()})
+</script>
+</body>
+</html>

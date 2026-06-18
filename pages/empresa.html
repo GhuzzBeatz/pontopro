@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/util.js"></script>
+</head>
+<body>
+<div class="page-content">
+  <div class="page-header">
+    <h1>&#127970; Dados da Empresa</h1>
+    <p>Configuracoes gerais do sistema</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card card-body">
+      <div style="font-weight:800;font-size:13px;margin-bottom:14px;color:var(--fg)">&#127970; Empresa</div>
+      <div class="form-group"><label class="form-label">Razao Social</label><input id="eNome"></div>
+      <div class="form-group"><label class="form-label">CNPJ</label><input id="eCNPJ" placeholder="00.000.000/0001-00"></div>
+      <div class="form-group"><label class="form-label">Endereco</label><input id="eEnd"></div>
+      <div class="form-group"><label class="form-label">Telefone</label><input id="eTel"></div>
+    </div>
+
+    <div class="card card-body">
+      <div style="font-weight:800;font-size:13px;margin-bottom:14px;color:var(--fg)">&#128274; Seguranca</div>
+      <div class="form-group">
+        <label class="form-label">Senha Administrativa</label>
+        <input type="password" id="eSenha" placeholder="Senha atual ou nova senha">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Padrao inicial: ADM123 - Recomendamos alterar apos o primeiro acesso.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmar Nova Senha</label>
+        <input type="password" id="eSenhaConf" placeholder="Repita a senha">
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="salvar()" style="padding:12px 24px;font-size:14px;font-weight:900">&#128190; Salvar Configuracoes</button>
+
+  <div class="aviso av-ok" id="avisoOk" style="margin-top:10px"></div>
+  <div class="aviso av-err" id="avisoErro" style="margin-top:10px"></div>
+</div>
+
+<script>
+aplicarTemaAtual()
+const { getConfig, setConfig } = require('../js/db.js')
+
+function carregar() {
+  document.getElementById('eNome').value = getConfig('empresa_nome', '')
+  document.getElementById('eCNPJ').value = getConfig('empresa_cnpj', '')
+  document.getElementById('eEnd').value = getConfig('empresa_end', '')
+  document.getElementById('eTel').value = getConfig('empresa_tel', '')
+}
+
+function salvar() {
+  setConfig('empresa_nome', document.getElementById('eNome').value.trim())
+  setConfig('empresa_cnpj', document.getElementById('eCNPJ').value.trim())
+  setConfig('empresa_end', document.getElementById('eEnd').value.trim())
+  setConfig('empresa_tel', document.getElementById('eTel').value.trim())
+
+  const s1 = document.getElementById('eSenha').value
+  const s2 = document.getElementById('eSenhaConf').value
+
+  if (s1) {
+    if (s1 !== s2) {
+      aviso('erro', 'Senhas nao conferem.')
+      return
+    }
+    localStorage.setItem('@PONTOPRO:senhaAdmin', s1)
+    document.getElementById('eSenha').value = ''
+    document.getElementById('eSenhaConf').value = ''
+  }
+
+  aviso('ok', 'Configuracoes salvas!')
+}
+
+carregar()
+</script>
+</body>
+</html>

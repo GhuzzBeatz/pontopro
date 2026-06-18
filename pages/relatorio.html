@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><link rel="stylesheet" href="../css/style.css"><script src="../js/util.js"></script></head>
+<body>
+<div class="page-content">
+  <div class="page-hdr-row page-header">
+    <div><h1>📈 Relatório de Ponto</h1><p>Espelho de ponto por funcionário e período</p></div>
+    <button class="btn btn-success" onclick="exportarExcel()">📥 Exportar Excel</button>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="card card-body" style="margin-bottom:14px;padding:16px 18px">
+    <div class="form-row" style="margin-bottom:0">
+      <div class="form-group">
+        <label class="form-label">Funcionário</label>
+        <select id="filtFunc"><option value="">Todos os funcionários</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Data Início</label>
+        <input type="date" id="filtIni">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Data Fim</label>
+        <input type="date" id="filtFim">
+      </div>
+      <div class="form-group" style="justify-content:flex-end;display:flex;flex-direction:column">
+        <button class="btn btn-primary" onclick="gerarRelatorio()">🔍 Gerar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESUMO -->
+  <div id="resumoBox" style="display:none;margin-bottom:14px">
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </div>
+
+  <!-- TABELA -->
+  <div class="card tbl-wrap" id="tabelaBox" style="display:none">
+    <div class="card-header">
+      <span class="card-title" id="tabelaTitulo">Espelho de Ponto</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Funcionário</th>
+          <th>Entrada</th>
+          <th>Saída Almoço</th>
+          <th>Retorno</th>
+          <th>Saída</th>
+          <th>Horas Trab.</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div id="estadoVazio" style="text-align:center;padding:48px;color:var(--muted)">
+    <div style="font-size:40px;margin-bottom:12px">📋</div>
+    <div style="font-size:14px;font-weight:700;color:var(--fg2)">Selecione os filtros e clique em Gerar</div>
+  </div>
+
+  <div class="aviso av-ok"  id="avisoOk"></div>
+  <div class="aviso av-err" id="avisoErro"></div>
+</div>
+
+<script>
+aplicarTemaAtual()
+const { listarFuncionarios, listarRegistros, calcularHorasDia } = require('../js/db.js')
+const { ipcRenderer } = require('electron')
+
+// Preencher funcionários
+const funcs = listarFuncionarios()
+const sel = document.getElementById('filtFunc')
+funcs.forEach(f => sel.innerHTML += `<option value="${f.id}">${f.nome}</option>`)
+
+// Datas padrão: mês atual
+const hoje = new Date()
+const ini  = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0]
+const fim  = hoje.toISOString().split('T')[0]
+document.getElementById('filtIni').value = ini
+document.getElementById('filtFim').value = fim
+
+let _dadosRelatorio = []
+
+function gerarRelatorio() {
+  const funcId = document.getElementById('filtFunc').value
+  const dtIni  = document.getElementById('filtIni').value
+  const dtFim  = document.getElementById('filtFim').value
+
+  if (!dtIni || !dtFim) { aviso('erro', 'Informe as datas.'); return }
+
+  // Buscar registros
+  const filtros = { data_inicio: dtIni, data_fim: dtFim }
+  if (funcId) filtros.funcionario_id = Number(funcId)
+  const regs = listarRegistros(filtros)
+
+  // Agrupar por funcionário → dia
+  const porFuncDia = {}
+  regs.forEach(r => {
+    const k = `${r.funcionario_id}_${r.data}`
+    if (!porFuncDia[k]) porFuncDia[k] = { funcionario_id: r.funcionario_id, data: r.data, regs: [] }
+    porFuncDia[k].regs.push(r)
+  })
+
+  // Calcular por dia
+  _dadosRelatorio = Object.values(porFuncDia).map(item => {
+    const func = funcs.find(f => f.id === item.funcionario_id) || {}
+    const calc = calcularHorasDia(item.regs)
+    return { ...calc, func, data: item.data }
+  }).sort((a, b) => a.data.localeCompare(b.data) || a.func.nome?.localeCompare(b.func.nome||''))
+
+  if (!_dadosRelatorio.length) {
+    document.getElementById('resumoBox').style.display = 'none'
+    document.getElementById('tabelaBox').style.display = 'none'
+    document.getElementById('estadoVazio').style.display = 'block'
+    document.getElementById('estadoVazio').innerHTML = '<div style="font-size:40px;margin-bottom:12px">📭</div><div style="font-size:14px;font-weight:700;color:var(--fg2)">Nenhum registro no período</div>'
+    return
+  }
+
+  renderResumo()
+  renderTabela()
+  document.getElementById('estadoVazio').style.display = 'none'
+  document.getElementById('resumoBox').style.display = 'block'
+  document.getElementById('tabelaBox').style.display = 'block'
+}
+
+function renderResumo() {
+  const totalDias  = _dadosRelatorio.length
+  const completos  = _dadosRelatorio.filter(d => d.completo).length
+  const incompletos = totalDias - completos
+  const totalMin   = _dadosRelatorio.reduce((s, d) => s + (d.trabalhado_min || 0), 0)
+  const hh = Math.floor(totalMin / 60)
+  const mm = totalMin % 60
+
+  document.getElementById('kpiGrid').innerHTML = [
+    ['Dias Registrados', totalDias, 'var(--primary-bg)', 'var(--primary2)', '📅'],
+    ['Dias Completos',   completos,   'var(--green-bg)',  'var(--green)',   '✅'],
+    ['Incompletos',      incompletos, 'var(--orange-bg)', 'var(--orange)',  '⚠️'],
+    ['Total Horas',      `${hh}h${String(mm).padStart(2,'0')}`, 'var(--blue-bg)', 'var(--blue)', '⏱️'],
+  ].map(([l,v,bg,c,ic]) => `
+    <div class="kpi-card" style="background:${bg};border-color:${c.replace(')','.3)').replace('var(--','rgba(0,0,0,').replace('var(--blue)','rgba(56,189,248,.25)')}">
+      <div><div class="kpi-label" style="color:${c}">${l}</div><div class="kpi-value" style="color:${c}">${v}</div></div>
+      <div class="kpi-icon" style="background:${bg};font-size:22px">${ic}</div>
+    </div>`).join('')
+}
+
+function renderTabela() {
+  const funcNome = document.getElementById('filtFunc').selectedOptions[0].text
+  const dtIni = document.getElementById('filtIni').value.split('-').reverse().join('/')
+  const dtFim = document.getElementById('filtFim').value.split('-').reverse().join('/')
+  document.getElementById('tabelaTitulo').textContent = `Espelho — ${funcNome === 'Todos os funcionários' ? 'Todos' : funcNome} · ${dtIni} a ${dtFim}`
+
+  document.getElementById('tbody').innerHTML = _dadosRelatorio.map(d => `
+    <tr>
+      <td>${d.data.split('-').reverse().join('/')}</td>
+      <td style="font-weight:600;color:var(--fg)">${d.func.nome || '—'}</td>
+      <td>${d.entrada}</td>
+      <td>${d.almoco_saida}</td>
+      <td>${d.almoco_retorno}</td>
+      <td>${d.saida}</td>
+      <td style="font-weight:700;color:var(--primary)">${d.trabalhado}</td>
+      <td><span class="badge ${d.completo ? 'b-green' : 'b-orange'}">${d.completo ? 'Completo' : 'Incompleto'}</span></td>
+    </tr>`).join('')
+}
+
+async function exportarExcel() {
+  if (!_dadosRelatorio.length) { aviso('erro', 'Gere o relatório primeiro.'); return }
+
+  try {
+    const XLSX = require('xlsx')
+    const linhas = _dadosRelatorio.map(d => ({
+      'Data':             d.data.split('-').reverse().join('/'),
+      'Funcionário':      d.func.nome || '',
+      'Matrícula':        d.func.matricula || '',
+      'Cargo':            d.func.cargo || '',
+      'Entrada':          d.entrada,
+      'Saída Almoço':     d.almoco_saida,
+      'Retorno Almoço':   d.almoco_retorno,
+      'Saída':            d.saida,
+      'Horas Trabalhadas':d.trabalhado,
+      'Status':           d.completo ? 'Completo' : 'Incompleto'
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Ponto')
+
+    // Largura das colunas
+    ws['!cols'] = [12,28,12,18,10,14,16,10,18,12].map(w => ({ wch: w }))
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    const dtIni = document.getElementById('filtIni').value.replace(/-/g,'')
+    const dtFim = document.getElementById('filtFim').value.replace(/-/g,'')
+    const nome  = `Ponto_${dtIni}_${dtFim}.xlsx`
+
+    const res = await ipcRenderer.invoke('exportar-excel', { nomeArquivo: nome })
+    if (!res.sucesso) { if (res.motivo !== 'cancelado') aviso('erro', res.erro); return }
+
+    await ipcRenderer.invoke('salvar-arquivo-bin', { caminho: res.caminho, dados: Array.from(buf) })
+    aviso('ok', '✅ Excel exportado: ' + res.caminho.split('\\').pop())
+  } catch(e) {
+    aviso('erro', 'Erro: ' + e.message)
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><link rel="stylesheet" href="../css/style.css"><script src="../js/util.js"></script></head>
+<body>
+<div class="totem-wrap">
+  <div class="totem-card">
+    <div class="totem-logo"><img src="../logo.png" style="width:80px;height:80px;object-fit:contain"></div>
+    <div class="totem-hora" id="relogio">--:--:--</div>
+    <div class="totem-data"  id="dataHoje"></div>
+    <div class="totem-titulo">Marcar Ponto</div>
+    <div class="totem-sub">Digite seu CPF e PIN para registrar</div>
+
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">CPF</label>
+      <input type="text" id="inputCPF" class="totem-input" placeholder="000.000.000-00"
+        maxlength="14" oninput="mascaraCPF(this)" onkeydown="if(event.key==='Enter')focarPIN()">
+    </div>
+
+    <div class="form-group" style="margin-bottom:18px">
+      <label class="form-label">PIN (4 dígitos)</label>
+      <input type="password" id="inputPIN" class="totem-input" placeholder="••••"
+        maxlength="4" inputmode="numeric" onkeydown="if(event.key==='Enter')marcarPonto()">
+    </div>
+
+    <button class="btn btn-primary" onclick="marcarPonto()" style="width:100%;padding:14px;font-size:16px;font-weight:900;margin-bottom:10px">
+      ⏱️ Registrar Ponto
+    </button>
+    <button class="btn btn-ghost" onclick="limpar()" style="width:100%;font-size:13px">Limpar</button>
+
+    <!-- Feedback OK -->
+    <div class="ponto-ok" id="feedbackOk">
+      <div style="font-size:36px;margin-bottom:8px">✅</div>
+      <div class="nome" id="fbNome"></div>
+      <div class="tipo" id="fbTipo"></div>
+      <div class="hora" id="fbHora"></div>
+    </div>
+
+    <!-- Feedback Erro -->
+    <div class="ponto-err" id="feedbackErr">
+      <div style="font-size:28px;margin-bottom:6px">❌</div>
+      <div id="fbErrMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+aplicarTemaAtual()
+const { getFuncionarioByCPF, marcarPonto: registrar, proximoPonto } = require('../js/db.js')
+
+// Relógio
+function atualizarRelogio() {
+  const n = new Date()
+  document.getElementById('relogio').textContent = n.toLocaleTimeString('pt-BR')
+  document.getElementById('dataHoje').textContent = n.toLocaleDateString('pt-BR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  })
+}
+atualizarRelogio()
+setInterval(atualizarRelogio, 1000)
+
+function mascaraCPF(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 11)
+  v = v.replace(/(\d{3})(\d)/, '$1.$2')
+  v = v.replace(/(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+  v = v.replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4')
+  el.value = v
+}
+
+function focarPIN() {
+  document.getElementById('inputPIN').focus()
+}
+
+const TIPOS_LABEL = {
+  'entrada':        '🟢 ENTRADA',
+  'almoco_saida':   '🟡 SAÍDA ALMOÇO',
+  'almoco_retorno': '🟡 RETORNO ALMOÇO',
+  'saida':          '🔴 SAÍDA',
+}
+
+let timerLimpar = null
+
+function marcarPonto() {
+  const cpf = document.getElementById('inputCPF').value.replace(/\D/g, '')
+  const pin  = document.getElementById('inputPIN').value.trim()
+
+  esconderFeedback()
+
+  if (cpf.length !== 11) { mostrarErro('CPF inválido. Digite os 11 dígitos.'); return }
+  if (!pin)               { mostrarErro('Informe o PIN.'); return }
+
+  try {
+    const func = getFuncionarioByCPF(cpf)
+    if (!func) { mostrarErro('CPF não encontrado no sistema.'); return }
+    if (!func.ativo) { mostrarErro('Funcionário inativo. Procure o RH.'); return }
+    if (func.pin !== pin) { mostrarErro('PIN incorreto.'); return }
+
+    const tipo = proximoPonto(func.id)
+    if (!tipo) { mostrarErro(`${func.nome.split(' ')[0]}, você já registrou todos os pontos de hoje.`); return }
+
+    const reg = registrar(func.id, tipo)
+
+    // Mostrar feedback positivo
+    document.getElementById('fbNome').textContent = func.nome
+    document.getElementById('fbTipo').textContent = TIPOS_LABEL[tipo] || tipo
+    document.getElementById('fbHora').textContent = reg.hora
+    document.getElementById('feedbackOk').style.display = 'block'
+
+    // Limpar automaticamente após 4 segundos
+    clearTimeout(timerLimpar)
+    timerLimpar = setTimeout(limpar, 4000)
+
+  } catch(e) {
+    mostrarErro('Erro: ' + e.message)
+  }
+}
+
+function mostrarErro(msg) {
+  document.getElementById('fbErrMsg').textContent = msg
+  document.getElementById('feedbackErr').style.display = 'block'
+  clearTimeout(timerLimpar)
+  timerLimpar = setTimeout(limpar, 3500)
+}
+
+function esconderFeedback() {
+  document.getElementById('feedbackOk').style.display = 'none'
+  document.getElementById('feedbackErr').style.display = 'none'
+}
+
+function limpar() {
+  document.getElementById('inputCPF').value = ''
+  document.getElementById('inputPIN').value = ''
+  esconderFeedback()
+  document.getElementById('inputCPF').focus()
+}
+
+// Foco automático no CPF
+document.getElementById('inputCPF').focus()
+</script>
+</body>
+</html>

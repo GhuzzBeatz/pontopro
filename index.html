@@ -1,0 +1,193 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>PontoPro</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/licenca.js"></script>
+<script>
+  if (!licencaAtivaPP()) window.location.replace('pages/licenca.html')
+</script>
+<script>
+  ;(function(){
+    var t = localStorage.getItem('@PONTOPRO:tema') || 'dark'
+    document.documentElement.setAttribute('data-tema', t)
+  })()
+</script>
+<script src="js/util.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon" style="background:transparent;padding:0"><img src="logo.png" style="width:36px;height:36px;object-fit:contain;border-radius:8px"></div>
+      <div>
+        <div class="logo-brand">PontoPro</div>
+        <div class="logo-sub">Controle de Ponto</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-sep">Ponto</div>
+      <button class="nav-btn active" onclick="ir('pages/ponto.html', this)">
+        <span class="nav-icon">&#128336;</span> Marcar Ponto
+      </button>
+      <button class="nav-btn" onclick="ir('pages/dashboard.html', this)">
+        <span class="nav-icon">&#128202;</span> Dashboard
+      </button>
+
+      <div class="nav-sep">Administracao</div>
+      <button class="nav-btn" onclick="abrirAdmin('pages/funcionarios.html', this)">
+        <span class="nav-icon">&#128101;</span> Funcionarios
+      </button>
+      <button class="nav-btn" onclick="abrirAdmin('pages/registros.html', this)">
+        <span class="nav-icon">&#128203;</span> Registros
+      </button>
+      <button class="nav-btn" onclick="abrirAdmin('pages/relatorio.html', this)">
+        <span class="nav-icon">&#128200;</span> Relatorios
+      </button>
+
+      <div class="nav-sep">Sistema</div>
+      <button class="nav-btn" onclick="abrirAdmin('pages/empresa.html', this)">
+        <span class="nav-icon">&#127970;</span> Empresa
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="btn-tema" onclick="alternarTema()">
+        <span id="temaIcon">&#9728;</span>
+        <span id="temaLabel">Modo Claro</span>
+      </button>
+      <div class="sidebar-brand-bottom">Desenvolvido por</div>
+      <div class="sidebar-brand-name">GHZ Plugin</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">Marcar Ponto</div>
+      <div class="topbar-clock" id="topbarClock"></div>
+    </div>
+    <div class="page">
+      <iframe id="frame" class="iframe-page" src="pages/ponto.html"></iframe>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL SENHA ADMIN -->
+<div id="modalAdmin" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:30px 36px;max-width:360px;width:95%;text-align:center">
+    <div style="font-size:32px;margin-bottom:10px">&#128274;</div>
+    <div style="font-size:16px;font-weight:800;color:var(--fg);margin-bottom:6px">Area Administrativa</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:18px">Digite a senha do administrador</div>
+    <div style="font-size:11px;color:var(--muted);margin:-8px 0 12px">Senha padrao inicial: <b>ADM123</b></div>
+    <input type="password" id="inputSenhaAdmin" placeholder="Senha" style="text-align:center;font-size:16px;margin-bottom:14px" onkeydown="if(event.key==='Enter')verificarSenha()">
+    <div id="senhaErro" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none">&#10060; Senha incorreta</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="fecharModalAdmin()" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="verificarSenha()" style="flex:1">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TITULOS = {
+  'ponto.html': 'Marcar Ponto',
+  'dashboard.html': 'Dashboard',
+  'funcionarios.html': 'Funcionarios',
+  'registros.html': 'Registros de Ponto',
+  'relatorio.html': 'Relatorios',
+  'empresa.html': 'Dados da Empresa',
+}
+
+let _pendingAdminUrl = null
+let _pendingAdminBtn = null
+const SENHA_ADMIN_PADRAO = 'ADM123'
+
+function getSenhaAdmin() {
+  return localStorage.getItem('@PONTOPRO:senhaAdmin') || SENHA_ADMIN_PADRAO
+}
+
+function inicializarSenhaAdminPadrao() {
+  if (!localStorage.getItem('@PONTOPRO:senhaAdmin')) {
+    localStorage.setItem('@PONTOPRO:senhaAdmin', SENHA_ADMIN_PADRAO)
+  }
+}
+
+function ir(url, btn) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
+  if (btn) btn.classList.add('active')
+  document.getElementById('frame').src = url
+  const nome = url.split('/').pop()
+  document.getElementById('topbarTitle').textContent = TITULOS[nome] || nome
+}
+
+function abrirAdmin(url, btn) {
+  _pendingAdminUrl = url
+  _pendingAdminBtn = btn
+  document.getElementById('inputSenhaAdmin').value = ''
+  document.getElementById('senhaErro').style.display = 'none'
+  document.getElementById('modalAdmin').style.display = 'flex'
+  setTimeout(() => document.getElementById('inputSenhaAdmin').focus(), 100)
+}
+
+function verificarSenha() {
+  const senha = document.getElementById('inputSenhaAdmin').value
+  const senhaCorreta = getSenhaAdmin()
+  if (senha === senhaCorreta) {
+    fecharModalAdmin()
+    ir(_pendingAdminUrl, _pendingAdminBtn)
+  } else {
+    document.getElementById('senhaErro').style.display = 'block'
+    document.getElementById('inputSenhaAdmin').value = ''
+    document.getElementById('inputSenhaAdmin').focus()
+  }
+}
+
+function fecharModalAdmin() {
+  document.getElementById('modalAdmin').style.display = 'none'
+}
+
+function alternarTema() {
+  const atual = localStorage.getItem('@PONTOPRO:tema') || 'dark'
+  const novo = atual === 'dark' ? 'light' : 'dark'
+  localStorage.setItem('@PONTOPRO:tema', novo)
+  document.documentElement.setAttribute('data-tema', novo)
+  document.getElementById('temaIcon').textContent = novo === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'
+  document.getElementById('temaLabel').textContent = novo === 'dark' ? 'Modo Claro' : 'Modo Escuro'
+  const frame = document.getElementById('frame')
+  frame.src = frame.src
+}
+
+// Relogio em tempo real
+function atualizarRelogio() {
+  const agora = new Date()
+  document.getElementById('topbarClock').textContent = agora.toLocaleTimeString('pt-BR', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  })
+}
+atualizarRelogio()
+setInterval(atualizarRelogio, 1000)
+
+// Propagar tema ao iframe
+document.getElementById('frame').addEventListener('load', () => {
+  try {
+    const t = localStorage.getItem('@PONTOPRO:tema') || 'dark'
+    document.getElementById('frame').contentDocument.documentElement.setAttribute('data-tema', t)
+  } catch (e) {}
+})
+
+// Init botao tema
+;(function () {
+  inicializarSenhaAdminPadrao()
+  const t = localStorage.getItem('@PONTOPRO:tema') || 'dark'
+  document.getElementById('temaIcon').textContent = t === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'
+  document.getElementById('temaLabel').textContent = t === 'dark' ? 'Modo Claro' : 'Modo Escuro'
+})()
+</script>
+</body>
+</html>
