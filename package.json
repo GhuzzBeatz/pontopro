@@ -1,6 +1,6 @@
 {
   "name": "pontopro",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "PontoPro — Sistema de Controle de Ponto Eletrônico",
   "main": "main.js",
   "author": "GHZ Plugin",
