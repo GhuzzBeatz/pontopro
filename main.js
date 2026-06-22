@@ -1,8 +1,12 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs   = require('fs')
+const createLocalLicenseGate = require('./js/local-license-gate')
 
 app.setName('PontoPro')
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) app.quit()
 
 function getDataDir() {
   return app.isPackaged
@@ -22,6 +26,16 @@ function salvarJSON(nome, dados) {
 }
 
 let win = null
+const licenseGate = createLocalLicenseGate({
+  storageKey: '@PONTOPRO:licenca', prefix: 'PONTO', salt: 'GHZ2026PONTOPRO', multiplier: 37
+})
+
+app.on('second-instance', () => {
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+})
 
 function createWindow() {
   const dir = getDataDir()
@@ -38,11 +52,12 @@ function createWindow() {
       nodeIntegrationInSubFrames: true,
       contextIsolation: false,
       webSecurity: false,
+      devTools: !app.isPackaged,
       additionalArguments: ['--data-dir=' + dir]
     }
   })
 
-  win.loadFile('index.html')
+  licenseGate.attach(win)
   win.once('ready-to-show', () => { win.show(); win.focus() })
   setTimeout(() => { if (win && !win.isVisible()) win.show() }, 4000)
   win.on('page-title-updated', e => e.preventDefault())
@@ -72,5 +87,10 @@ ipcMain.handle('salvar-arquivo-bin', async (event, { caminho, dados }) => {
 ipcMain.handle('dados:ler',    async (e, nome)        => lerJSON(nome, []))
 ipcMain.handle('dados:salvar', async (e, nome, dados) => { salvarJSON(nome, dados); return { ok: true } })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return
+  createWindow()
+  await win.loadFile('pages/licenca.html')
+  if (await licenseGate.authorizeFromStorage(win)) await win.loadFile('index.html')
+})
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
