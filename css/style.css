@@ -86,8 +86,8 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
 .btn-tema {
   width: 100%; padding: 8px 11px; border: 1px solid rgba(255,255,255,.1);
   border-radius: 8px; background: rgba(255,255,255,.04); color: rgba(255,255,255,.6);
-  cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center;
-  gap: 8px; transition: all .15s; font-family: inherit; margin-bottom: 8px
+  cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center;
+  gap: 8px; transition: all .15s; font-family: inherit; margin-bottom: 10px
 }
 .btn-tema:hover { background: rgba(255,255,255,.1); color: #fff }
 .sidebar-brand-bottom { font-size: 10px; color: rgba(255,255,255,.2); text-align: center }
